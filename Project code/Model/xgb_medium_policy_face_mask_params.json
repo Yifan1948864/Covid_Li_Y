@@ -1,0 +1,9 @@
+{
+  "best_cv_auc": 0.8900569053672751,
+  "best_params": {
+    "max_depth": 8,
+    "learning_rate": 0.015980630697027744,
+    "subsample": 0.9573053294501943,
+    "colsample_bytree": 0.5047134836822057
+  }
+}

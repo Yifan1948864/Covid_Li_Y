@@ -1,0 +1,9 @@
+RegionName,RegionCode,Date,facial_covering_14d_avg
+Australian Capital Territory,AUS_ACT,2021-08-18,3.0
+New South Wales,AUS_NSW,2021-07-09,3.0
+Northern Territory,AUS_NT,2021-11-21,3.0
+Queensland,AUS_QLD,2021-01-17,3.142857142857143
+South Australia,AUS_SA,2021-07-26,3.0
+Tasmania,AUS_TAS,2021-10-21,3.0
+Victoria,AUS_VIC,2020-07-21,3.0
+Western Australia,AUS_WA,2021-02-08,3.0

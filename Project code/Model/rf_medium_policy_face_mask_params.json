@@ -1,0 +1,9 @@
+{
+  "best_cv_auc": 0.8857667282264684,
+  "best_params": {
+    "max_depth": 22,
+    "min_samples_split": 10,
+    "min_samples_leaf": 2,
+    "max_features": 0.5
+  }
+}
