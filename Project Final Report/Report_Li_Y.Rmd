@@ -1,0 +1,1182 @@
+---
+title: "Changing Drivers of Protective Health Behaviour Across Multi-Policy Conditions in Australia During COVID-19"
+subtitle: "Project Final Report"
+author: "Yifan Li"
+date: "2026-08-02"
+output:
+  pdf_document:
+      number_sections: true
+bibliography: BibFile.bib
+geometry: "top=20mm, left=20mm, right=20mm, bottom=20mm"
+fontsize: 12pt
+header-includes:
+  - \usepackage{float}
+---
+
+\newtheorem{theorem}{Theorem}
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Project supervisor: Dr Anthony Mays
+
+# Declaration
+
+In submitting this work I am indicating that I have read the University's Academic Integrity Policy. I declare that all material in this assessment is my own work except where there is clear acknowledgement and reference to the work of others. I give permission for this work to be reproduced and submitted to other academic staff for educational purposes.
+
+# Abstract
+
+Protective health behaviours were important to the public response to COVID-19, but they occurred within changing combinations of government policies. Previous Australian research compared behavioural predictors before and after mask mandates without examining broader policy conditions. This study examined how predictors of face-mask behaviour and general protective behaviour varied across low, medium and high multi-policy intensity in Australia.
+
+Australian YouGov Behaviour Tracker responses were linked by state and date to Oxford COVID-19 Government Response Tracker policy data. Containment and closure, economic, and health-system scores represented the policy environment, and 32,163 respondents were divided into three intensity groups. Random Forest and XGBoost models were fitted for both binary outcomes within each group, producing twelve models. Performance was evaluated on held-out data, and feature importance was estimated across 100 repeated fits. Test ROC-AUC ranged from 0.780 to 0.939. Importance rankings changed with policy intensity and behaviour type. Face-mask behaviour was distinguished mainly by health policy, containment policy and survey period, particularly under medium and high intensity. General protective behaviour retained stronger contributions from perceived illness severity, recent contacts, age and willingness to self-isolate, although containment policy became the leading predictor under high intensity. The findings show a changing balance between policy-context and individual predictors and describe predictive associations rather than causal policy effects.
+\newpage
+
+
+
+# Introduction
+
+The COVID-19 pandemic caused widespread illness, placed sustained pressure on health systems and disrupted social and economic life across countries [@haldane2021, p. 1]. Reducing transmission depended partly on whether people adopted protective measures such as wearing face masks, limiting close contact, maintaining physical distance and improving hygiene. It is therefore important to understand whether individual characteristics, risk perceptions, social contact and policy conditions can predict who reports frequent protective behaviour. Such prediction can identify the factors that distinguish adoption from non-adoption and show whether those factors remain relevant as the surrounding conditions change.
+
+Previous Australian machine-learning research found that important predictors of protective behaviour differed before and after requirements to wear face masks were introduced [@ryan2025, p. 1]. However, focusing only on face-mask requirements captures only one part of the wider policy setting. The present study extends this approach by considering three broader areas of government policy: containment and closure, economic support, and health measures.
+
+The study asks one central research question:
+
+**How did the important predictors of face-mask behaviour and general protective behaviour vary across low, medium and high levels of multi-policy intensity in Australia during COVID-19?** 
+
+Throughout this study, *drivers* is used as shorthand for important predictors in the fitted models, not as evidence that a variable causes protective behaviour.
+
+To answer this question, the study combined survey responses from Australia with information about government policies. It then examined face-mask wearing and protective behaviour more generally under different levels of policy intensity. The results showed that the main drivers differed according to both the policy setting and the type of behaviour. Mask wearing was linked more closely to government policy and survey timing, whereas general protective behaviour was linked more closely to people’s characteristics, perceptions and circumstances. Overall, there was no single set of drivers that applied across all policy conditions.
+
+# Background
+
+## Previous research
+
+Protective health behaviours, such as wearing a face mask, keeping physical distance and improving hygiene, can help reduce disease transmission. Previous studies first examined the individual factors associated with these behaviours. In an Australian survey, worry about an outbreak and greater media exposure were associated with reporting more protective behaviours [@faasse2020, p. 7]. However, the study used cross-sectional and self-reported data, so it could not establish causal relationships [@faasse2020, p. 10]. A later European review found that health literacy helped people understand health information and accept preventive measures [@vasileia2025, p. e46]. These studies identified important psychological and information-related factors, but did not directly compare how their importance changed across policy environments.
+
+Research then moved beyond individual factors to the surrounding social and policy environment. Haldane et al. explained that mask wearing and physical distancing depend partly on shared values and social responsibility within communities [@haldane2021, p. 3]. Bray et al. directly observed mask use in public places and found that location and local mask rules explained more variation than the demographic composition of the observed crowds [@bray2023, p. e91]. Government responses are also more complicated than a single rule. Brauner et al. examined the effects of multiple government measures on COVID-19 transmission across 41 countries. Because these measures frequently overlapped, they modelled them jointly to distinguish the estimated contribution of each measure [@brauner2021, p. 802]. This overlap highlights the need to consider the wider policy context. This provides an important reason to consider a multi-policy environment rather than studying one policy separately.
+
+More recent research has started to combine individual or behavioural factors with policy information using machine learning. In a cross-national preprint, Scantamburlo et al. compared beliefs, information sources, epidemic indicators and government interventions. Their Random Forest results identified belief in mask effectiveness, fear of infection and the Containment and Health Index as the three most important predictors of national mask use [@scantamburlo2025, p. 7]. However, the study used country-level mask behaviour and did not examine individual respondents or other protective behaviours. Ryan et al. then studied individual survey responses in Australia and compared the predictors of face-mask wearing and general protective behaviour before and after mask mandates [@ryan2025, p. 1]. They found that several predictors remained important in both periods, while willingness to isolate became more important after mandates [@ryan2025, p. 12]. Their study showed that important predictors can change after a policy change, but it divided the policy environment only into before and after mask mandates.
+
+Based on this research gap, the main aim of this project is to study whether the drivers of protective health behaviour changed across different policy conditions in Australia during COVID-19.
+
+## Reproduction of the Ryan et al. analytical framework
+
+Before developing the broader multi-policy analysis, the present study independently reproduced the analytical framework of Ryan et al. as a technical baseline. Ryan et al. used machine-learning models to examine whether the important predictors of protective behaviour differed before and after face-mask requirements were introduced in Australia. They found that Random Forest and XGBoost performed better than Logistic Regression and Decision Tree, that predictor importance differed between the two periods, and that willingness to self-isolate became more prominent after face-mask requirements were introduced [@ryan2025, pp. 1, 12]. Their study showed that the important predictors of protective behaviour may vary across policy conditions and therefore provided the analytical starting point for the present study.
+
+## Data sources
+
+### YouGov data
+
+The YouGov Behaviour Tracker is a repeated cross-sectional survey that collected responses from different samples over time rather than following the same individuals. Its variables cover demographics, protective behaviours, risk perceptions, mental health, well-being and existing health conditions [@ryan2025, p. 3]. Variables beginning with \texttt{i12\_} measure the frequency of protective behaviours, including face-mask wearing, physical distancing, crowd avoidance and hygiene practices, generally using a five-point scale from `Not at all` to `Always` [@jones2020, Codebook Sheet1, rows 237--456]. Potential predictors include \texttt{r1\_} items for perceived COVID-19 risk, \texttt{PHQ4\_} items for mental health, and \texttt{d1\_health\_} items for existing health conditions [@jones2020, Codebook Sheet1, rows 573--579, 826--869, and 1755--1845]. The survey also records age, gender, working status, household size, contact with others and willingness to self-isolate [@jones2020, README, paras. 8--9]. Higher values generally indicate more frequent behaviour or stronger agreement. The data and codebook are available from the Imperial College London--YouGov COVID-19 Behaviour Tracker GitHub repository [@jones2020].
+
+### OxCGRT data
+
+OxCGRT provides longitudinal data on government responses at national and subnational levels [@hale2021, p. 529]. Its policy variables are grouped by prefix. 
+
+- \texttt{C} variables cover containment and closure measures, including school and workplace closures, gathering restrictions, stay-at-home requirements and travel controls. 
+
+- \texttt{E} variables describe economic support, such as income support and debt or contract relief.
+
+- \texttt{H} variables cover health policies, including public information campaigns, testing, contact tracing, facial-covering requirements, vaccination policy and protection of older people. 
+
+Most indicators use ordinal scales, with higher values representing stronger or more extensive responses. The data and documentation are available from the project GitHub repository [@hale2021].
+
+## Modelling framework
+
+Previous studies have shown that machine learning models are useful for predicting protective behaviour. Roma et al. used psychological and social variables in several classifiers [@roma2020, p. 10]. Their test results showed that these models could predict high and low compliance [@roma2020, p. 12]. In the Australian mask-mandate setting, Ryan et al. found that the tree-based Random Forest and XGBoost models performed better than the other models they examined [@ryan2025, p. 12].
+
+### Random Forest
+
+Based on Breiman [@breiman2001, p. 6], Random Forest is understood in this report as a collection of randomised decision trees whose class predictions are combined by majority vote. The randomisation allows the trees to learn different patterns, so the final prediction does not depend on a single fitted tree. This project used the implementation provided by `scikit-learn`. The underlying mathematical theory of Random Forest was not studied in detail or independently verified in this project. The settings used are defined in Table \ref{tab:rf-hyperparameters}.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{ |p{0.3\textwidth}|p{0.6\textwidth}| }
+\hline
+\textbf{Hyperparameter} & \textbf{Meaning} \\ \hline
+\texttt{n\_estimators} & Number of trees included in the forest. \\ \hline
+\texttt{max\_depth} & Maximum number of levels allowed in each tree; this controls tree complexity. \\ \hline
+\texttt{min\_samples\_split} & Minimum number of observations required before an internal node can be divided. \\ \hline
+\texttt{min\_samples\_leaf} & Minimum number of observations that must remain in a final leaf. \\ \hline
+\texttt{max\_features} & Number or proportion of predictors considered when searching for each split. \\ \hline
+\end{tabular}
+\caption{Definitions of the Random Forest hyperparameters used in this report. These settings control the number and complexity of trees and how their splits are constructed.}
+\label{tab:rf-hyperparameters}
+\end{table}
+
+### XGBoost
+
+Based on Chen and Guestrin [@chen2016, pp. 786--787], XGBoost is understood in this report as a tree-based model in which trees are added sequentially, with each new tree intended to improve the current predictions. The learning rate controls the contribution of each new tree, while observation and feature subsampling restrict the data available during tree construction. This project used the standard implementation provided by the `xgboost` package. The detailed optimisation algorithm and regularised objective were not studied in depth or independently verified. The settings used are defined in Table \ref{tab:xgb-hyperparameters}.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{ |p{0.3\textwidth}|p{0.6\textwidth}| }
+\hline
+\textbf{Hyperparameter} & \textbf{Meaning} \\ \hline
+\texttt{n\_estimators} & Number of boosting trees added to the model. \\ \hline
+\texttt{max\_depth} & Maximum number of levels allowed in each tree; this controls tree complexity. \\ \hline
+\texttt{learning\_rate} & Amount contributed by each new tree; smaller values make learning more gradual. \\ \hline
+\texttt{subsample} & Proportion of training observations used to build each tree. \\ \hline
+\texttt{colsample\_bytree} & Proportion of predictors considered when building each tree. \\ \hline
+\end{tabular}
+\caption{Definitions of the XGBoost hyperparameters used in this report. These settings control the number and complexity of trees and the contribution and sampling used at each boosting step.}
+\label{tab:xgb-hyperparameters}
+\end{table}
+
+### Evaluation measures
+
+Evaluation measures describe how well a model's predictions match the observed outcomes. For a binary outcome, this comparison produces four possible results: true positive (TP), false positive (FP), true negative (TN) and false negative (FN) [@tharwat2021, p. 170]. Accuracy, precision, recall and F1-score are calculated from these results, while ROC-AUC evaluates discrimination across classification thresholds [@tharwat2021, Eqns. 1, 2, 6, 12 and Sections 3--4]. These measures are defined in Table \ref{tab:evaluation-metrics}. In this report, they serve not only to compare the two model families but also to establish whether each model has sufficient out-of-sample predictive ability to support interpretation of its feature importance. Importance rankings from a model with little ability to predict unseen observations would have limited substantive value because they could reflect patterns specific to the training data rather than generalisable predictive information.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{ |p{0.2\textwidth}|p{0.7\textwidth}| }
+\hline
+\textbf{Measure} & \textbf{Meaning} \\ \hline
+Accuracy & Proportion of all predictions that are correct: $(TP+TN)/(TP+TN+FP+FN)$. \\ \hline
+Precision & Proportion of predicted positive cases that are actually positive: $TP/(TP+FP)$. \\ \hline
+Recall & Proportion of actual positive cases that are correctly identified: $TP/(TP+FN)$. \\ \hline
+F1-score & Harmonic mean of precision and recall: $2\times(\text{precision}\times\text{recall})/(\text{precision}+\text{recall})$. \\ \hline
+ROC-AUC & Measures how well the model distinguishes positive from negative cases across all classification thresholds. A value closer to one indicates better discrimination. \\ \hline
+\end{tabular}
+\caption{Definitions of the model evaluation measures used in this report.}
+\label{tab:evaluation-metrics}
+\end{table}
+
+### Feature importance
+
+Feature importance is calculated differently by the two models. Based on Louppe et al. [@louppe2013, Eqns. 1--2], Random Forest feature importance is understood here as being based on the reductions in Gini impurity produced by splits using each predictor. Based on Chen and Guestrin [@chen2016, Eqn. 7], XGBoost feature importance is understood as being based on the gain produced by splits using each predictor. The detailed mathematical derivations and their implementation within the software were not studied in depth, so the exact internal calculations were not independently confirmed in this project. Although the two models use different calculations, both measures are referred to as feature importance in the remainder of this report. Feature importance describes the relative contribution of a predictor to a model's predictions and is used to rank predictors. The scores from Random Forest and XGBoost are not treated as directly comparable values, and they do not show the direction of a relationship or establish causation.
+
+# Methods
+
+All data processing and analysis were conducted in Python 3.13.9. A random seed of 3034 was used for every stochastic procedure. On OneDrive, the final-analysis code is stored in `Project code/Code`, and the reproduction code is stored in `Part A Reproduction Code/code`. The same directory structure is used in the GitHub repository: \url{https://github.com/Yifan1948864/Covid_Li_Y}. 
+
+Unless a complete path is explicitly specified, all files mentioned below are located in the `Project code/Code` directory.
+
+## Baseline reproduction of the Ryan et al. analytical framework
+
+As a preliminary step, the analytical framework of Ryan et al. was independently reproduced to establish a technical baseline for the multi-policy analysis. Australian survey responses were linked to the OxCGRT facial-covering indicator. Its 14-day rolling average was used to identify the date on which face-mask requirements began in each state or territory, and respondents were divided into periods before and after that date. Face-mask behaviour and general protective behaviour were then modelled as four binary classification tasks, covering the two outcomes in the two periods. Logistic Regression, Decision Tree, Random Forest, and XGBoost models were fitted and evaluated using held-out data. Repeated model fitting was also used to estimate feature-importance rankings [@ryan2025, pp. 3--8].
+
+The aim was to reproduce the overall workflow rather than every numerical result. Some preprocessing and computational settings differed from the original study. Detailed reproduced results are presented in Appendices I--K.
+
+## Data preprocessing
+
+### YouGov data processing
+
+Before selecting variables, the answer categories `Prefer not to say` and `Don't know`, together with the data placeholders `NA` and `N/A`, were recoded as missing values. In contrast, `Not sure` was retained when it was offered as an answer to an attitude question, because uncertainty was itself a meaningful response. Following Ryan et al. [@ryan2025, p. 3], variables with more than 11,000 missing observations, approximately 20% of the original sample, were then removed. Any respondent with a missing value in one or more of the remaining variables was also removed (cells 4--6 of "02_2_compare_clean_YouGov_data.ipynb").
+
+After incomplete variables and responses were removed, survey completion dates were taken from the date component of `endtime` and parsed in `day/month/year` order. Following Ryan et al. [@ryan2025, p. 4], the retained survey period was divided into consecutive 14-day intervals. The index was calculated using Equation \eqref{eqn:week-number}:
+
+\begin{align}
+\label{eqn:week-number}
+\texttt{week\_number}_i
+=
+\left\lfloor
+\frac{\texttt{endtime}_i-\min(\texttt{endtime})}
+{14\,\text{days}}
+\right\rfloor+1.
+\end{align}
+
+The next stage converted the remaining survey answers according to their original response scales:
+
+- **Household size:** Categories `1` to `7` were converted to the corresponding integers, while `8 or more` was top-coded as 8.
+
+- **Risk perception:** Responses on a seven-point scale were converted to integer scores from 1 to 7.
+
+- **Protective behaviour:** For each retained item beginning with `i12_health_`, the five frequency responses were converted to an ordered numerical scale:
+
+  - `Not at all` = 1
+  - `Rarely` = 2
+  - `Sometimes` = 3
+  - `Frequently` = 4
+  - `Always` = 5
+
+Higher values indicated more frequent protective behaviour (cells 8--10 of "02_2_compare_clean_YouGov_data.ipynb").
+
+Based on the outcome definitions used by Ryan et al. [@ryan2025, p. 4], the recoded `i12_health_` items were used to construct two outcomes. The face-mask score was the median of the four mask-related items `i12_health_1`, `i12_health_22`, `i12_health_23`, and `i12_health_25` for each respondent. The general protective-behaviour score was the median of all retained protective-behaviour items whose names began with `i12_health_`, including the four mask-related items. Each score was then converted to a binary outcome using the same threshold: a median of 4 or higher was coded 1, indicating that the behaviours were followed frequently or always overall, while a median below 4 was coded 0 (cells 11--12 of "02_2_compare_clean_YouGov_data.ipynb"). Once the two outcomes had been created, the original behaviour items and the two temporary median scores were removed because they were no longer required for modelling.
+
+Following Ryan et al. [@ryan2025, p. 5], the variables beginning with `d1_health_` were combined into a single comorbidity variable. Respondents for whom `d1_health_99 == 1`, indicating that they had none of the listed conditions, were coded as `"No"`. Respondents for whom any of the condition-specific `d1_health_` variables equalled `1` were coded as `"Yes"`. Because `d1_health_98 == 1` indicated non-disclosure, it did not provide sufficient information to determine comorbidity status and was therefore recoded as `NA` (cell 13 of "02_2_compare_clean_YouGov_data.ipynb").
+
+### OxCGRT data processing
+
+To construct a policy panel that was comparable across state-days, the Australian OxCGRT file was first screened for suitable policy indicators. The file contained 43 candidate policy variables in columns 7--49. Indicators with any missing observations were excluded because the domain scores required a complete and comparable daily series. To reduce duplication, Spearman correlations were calculated between these complete indicators. Among all indicators in pairs with $|\rho|\geq 0.75$,  `C3M_Cancel public events` was removed because it overlapped strongly with workplace closing and gathering restrictions, while the three vaccine summary variables `V1_Vaccine Prioritisation (summary)`, `V2A_Vaccine Availability (summary)`, and `V3_Vaccine Financial Support (summary)` were removed because they overlapped with the retained vaccination-policy indicator. The resulting set contained 15 indicators: seven containment and closure policies, two economic-support policies, and six health-system policies (cells 2--6 of "01_clean_OxCGRT_policy_data.ipynb"). Their definitions and original scale maximum are reported in Table \ref{tab:oxcgrt-variables} in Appendix B.
+
+After indicator selection, `RegionName` was renamed `state`, and the eight-digit `Date` field was parsed in `year/month/day` order. Because the retained policy indicators had different ordinal ranges, they were converted to a common 0--5 scale (cells 7--11 of "01_clean_OxCGRT_policy_data.ipynb").
+
+Using these standardised indicators, the policy measures were aggregated for each state-day as follows:
+
+- **`C_policy_mean`:** Calculated as the mean of the seven containment and closure policy indicators.
+
+- **`E_policy_mean`:** Calculated as the mean of the two economic-support policy indicators.
+
+- **`H_policy_mean`:** Calculated as the mean of the six health-system policy indicators.
+
+The three domain scores were then averaged with equal weight to calculate overall policy intensity (cell 12 of "01_clean_OxCGRT_policy_data.ipynb"). The tertile cut-off values for overall policy intensity were 2.2850 and 3.0489 (cell 13 of "01_clean_OxCGRT_policy_data.ipynb"), and these values were used to classify policy intensity as follows:
+
+- `low`: values below 2.2850
+- `medium`: values from 2.2850 to below 3.0489
+- `high`: values of 3.0489 or higher
+
+### Survey-policy data integration
+
+The two datasets were linked by state and date using an inner join. Each matched respondent was assigned the three policy-domain scores and the policy-intensity category recorded for the corresponding state-day (cell 6 of "03_merge_data.ipynb").
+
+The predictor set combined the three continuous policy-domain scores with individual-level YouGov survey variables, which included both numerical and categorical data. The seven categorical predictors—`i9_health`, `i11_health`, `gender`, `employment_status`, `WCRex2`, `WCRex1`, and `d1_comorbidities`—were converted using one-hot encoding, with one category omitted from each variable as the reference category (cells 11--12 of "03_merge_data.ipynb"). To support policy-level comparisons, the merged sample was then stratified by `policy_intensity_level` into low-, medium-, and high-intensity datasets. Variables used only for data linkage or the definition of policy conditions—`Date`, `state`, `overall_policy_intensity`, and `policy_intensity_level`—were subsequently excluded from the policy-specific datasets. The resulting datasets therefore contained only the predictor variables and behavioural outcomes.
+
+
+## Model training and evaluation
+
+### Prediction tasks and data partitioning
+
+Six binary classification tasks were formed by crossing the three policy-intensity levels with the two outcomes. 
+
+\begin{enumerate}
+\item Face-mask behaviour under low policy intensity.
+\item General protective behaviour under low policy intensity.
+\item Face-mask behaviour under medium policy intensity.
+\item General protective behaviour under medium policy intensity.
+\item Face-mask behaviour under high policy intensity.
+\item General protective behaviour under high policy intensity.
+\end{enumerate}
+
+For each task, the other behavioural outcome was removed from the predictor set before model fitting to avoid information leakage. Each policy-specific dataset was then randomly divided into an 80% training set and a 20% held-out test set using stratification on the relevant outcome and `random_state=3034`. The test set was not used for tree-number selection or hyperparameter tuning, ensuring an independent estimate of performance on unseen observations.
+
+
+### Tree-number selection
+
+The number of trees was selected before the remaining hyperparameters were tuned. Candidate ensembles containing 100, 250, 500, 750, and 1,000 trees were compared using mean ROC-AUC from five-fold stratified cross-validation on each training set. To isolate the effect of tree number, all other tunable Random Forest and XGBoost settings were left at their default values throughout this comparison (cells 6 and 8 of "06_rf_xgboost_tree_selection.ipynb"). 
+
+### Random Forest hyperparameter tuning
+
+One Random Forest was fitted for each of the six prediction tasks. With the number of trees fixed at the value selected in the preceding comparison, Optuna was used to evaluate 200 hyperparameter combinations from the search spaces in Table \ref{tab:rf-search-space}. Each combination was evaluated by mean ROC-AUC from five-fold cross-validation with shuffling and `random_state=3034`. The parameter combination with the highest mean cross-validation ROC-AUC was then used to refit the model on the complete training set, allowing all available training observations to contribute to the final model (lines 32--100 of "07_model_functions.py").
+
+\begin{table}[H]
+\centering
+\begin{tabular}{ |p{0.35\textwidth}|p{0.5\textwidth}| }
+\hline
+\textbf{Hyperparameter} & \textbf{Search space} \\ \hline
+\texttt{max\_depth} & Integers from 10 to 40 \\ \hline
+\texttt{min\_samples\_split} & Integers from 2 to 10 \\ \hline
+\texttt{min\_samples\_leaf} & Integers from 1 to 10 \\ \hline
+\texttt{max\_features} & \texttt{sqrt}, \texttt{log2}, 0.5, or all predictors \\ \hline
+\end{tabular}
+\caption{Random Forest hyperparameter search spaces used in the Optuna optimisation.}
+\label{tab:rf-search-space}
+\end{table}
+
+### XGBoost hyperparameter tuning
+
+The same six training and test sets were used for XGBoost, ensuring that its performance could be compared with Random Forest under identical data partitions. For each task, 200 Optuna trials were conducted with the number of boosting trees fixed at the value selected in the preceding comparison and the remaining search spaces defined in Table \ref{tab:xgb-search-space}. Mean ROC-AUC from the same five-fold stratified cross-validation design was maximised, providing a consistent basis for optimisation and comparison across algorithms. The best parameter combination was then used to refit the model on the complete training set with the default binary classification objective (lines 138--202 of "07_model_functions.py").
+
+\begin{table}[H]
+\centering
+\begin{tabular}{ |p{0.35\textwidth}|p{0.5\textwidth}| }
+\hline
+\textbf{Hyperparameter} & \textbf{Search space} \\ \hline
+\texttt{max\_depth} & Integers from 2 to 10 \\ \hline
+\texttt{learning\_rate} & Continuous values from 0.01 to 0.10 \\ \hline
+\texttt{subsample} & Continuous values from 0.5 to 1.0 \\ \hline
+\texttt{colsample\_bytree} & Continuous values from 0.5 to 1.0 \\ \hline
+\end{tabular}
+\caption{XGBoost hyperparameter search spaces used in the Optuna optimisation.}
+\label{tab:xgb-search-space}
+\end{table}
+
+### Model evaluation
+
+Model performance was evaluated using the held-out test data, which had not contributed to model selection or fitting. For each prediction task, the final model generated a predicted class and a probability for class 1 for every test observation. Class 1 represented frequent face-mask wearing in the face-mask tasks and frequent or consistent protective behaviour in the general protective-behaviour tasks. The predicted classes were compared with the observed classes to calculate accuracy, precision, recall, and F1-score. The class 1 probabilities and observed classes were used to calculate ROC-AUC, which assessed discrimination independently of the classification threshold. The held-out results were then used as a generalisation check before the feature-importance rankings were interpreted: evidence that both model families could predict unseen outcomes would provide a predictive basis for examining which variables contributed to their predictions (lines 205--220 of "07_model_functions.py").
+
+### Feature importance estimation
+
+Following Ryan et al. [@ryan2025, p. 8], feature importance was estimated through repeated model fitting:
+
+\begin{enumerate}
+\item For each prediction task, the selected model was cloned and refitted to the complete training set 100 times, using seeds from 3034 to 3133.
+
+\item After each fit, the model's \texttt{feature\_importances\_} attribute automatically returned an importance value for every predictor, so no importance values needed to be specified manually in the analysis code.
+
+\item For each predictor, the median across the 100 repetitions was used as the final importance estimate because it provided a robust summary that was less sensitive to unusually high or low values.
+
+\item The first quartile, third quartile, and interquartile range were retained to describe variation between fits and therefore indicate the stability of each predictor's estimated importance.
+
+\item Predictors were then ranked in descending order of median importance to identify those that contributed most strongly to the fitted models.
+\end{enumerate}
+
+This procedure was implemented in lines 103--135 of "07_model_functions.py" and applied to the six tasks in cells 2--7 of both "08_random_forest_models.ipynb" and "09_xgboost_models.ipynb".
+
+# Results
+
+## Data preprocessing results
+
+### YouGov dataset
+
+After preprocessing, the cleaned YouGov dataset contained 32,163 complete responses and 18 variables, including two binary outcomes measuring face-mask behaviour and general protective behaviour (cell 17 of "02_2_compare_clean_YouGov_data.ipynb"). The other retained variables captured demographic characteristics, social exposure, health status, risk perception, institutional attitudes, intended protective responses, and the date and state required for data linkage. Full variable definitions are provided in Table \ref{tab:yougov-variables} in Appendix A.
+
+### OxCGRT policy dataset
+
+After preprocessing, the policy dataset contained 8,768 state-day observations and seven variables, with 1,096 daily observations for each of the eight Australian states and territories (cell 16 of "01_clean_OxCGRT_policy_data.ipynb"). The retained variables were state, date, three domain-specific scores representing containment and closure, economic support, and health-system policies, an overall policy-intensity score, and a categorical policy-intensity level. The overall policy-intensity score had a mean of 2.5612 and a median of 2.6521 (cell 12 of "01_clean_OxCGRT_policy_data.ipynb"). Of the 8,768 state-day observations, 2,920 were classified as low intensity, 2,851 as medium intensity, and 2,997 as high intensity (cell 14 of "01_clean_OxCGRT_policy_data.ipynb").
+
+### Integrated and policy-specific datasets
+
+All 32,163 YouGov responses were matched to an OxCGRT record for the same state and date, resulting in no loss of survey observations during data linkage (cell 6 of "03_merge_data.ipynb"). Within the merged sample, 1,763 respondents were classified under low-intensity conditions, 13,700 under medium-intensity conditions, and 16,700 under high-intensity conditions (cell 9 of "03_merge_data.ipynb"). After the linkage variables and the overall policy-intensity score were excluded and the categorical predictors were one-hot encoded, the merged dataset contained 32 columns: 29 predictors, two binary behavioural outcomes, and `policy_intensity_level`, which was retained solely as a stratification variable (cell 12 of "03_merge_data.ipynb"). The complete set of 32 columns is reported in Table \ref{tab:merged-columns} in Appendix C. The merged sample was subsequently divided into low-, medium-, and high-intensity datasets, after which `policy_intensity_level` was removed from each dataset (cell 4 of "04_split_data_by_policy_level.ipynb"). Each final policy-specific dataset therefore contained 31 columns, comprising the same 29 predictors and two binary behavioural outcomes.
+
+
+## Model tuning results
+
+### Task samples and class distributions
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{ |p{0.2\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|p{0.2\textwidth}| }
+\hline
+\textbf{Policy intensity} & \textbf{Outcome} & \textbf{Training} & \textbf{Test} & \textbf{Training class 1} \\ \hline
+Low & Face mask & 1,410 & 353 & 70.57\% \\ \hline
+Low & Protective & 1,410 & 353 & 71.21\% \\ \hline
+Medium & Face mask & 10,960 & 2,740 & 52.11\% \\ \hline
+Medium & Protective & 10,960 & 2,740 & 63.14\% \\ \hline
+High & Face mask & 13,360 & 3,340 & 51.64\% \\ \hline
+High & Protective & 13,360 & 3,340 & 66.11\% \\ \hline
+\end{tabular}
+\caption{Training and held-out test sample sizes for the six prediction tasks. Class 1 denotes a binary outcome value of 1.}
+\label{tab:task-samples}
+\end{table}
+
+Table \ref{tab:task-samples} reports the sample sizes and training-set class distributions obtained from the stratified 80/20 partitioning of the six policy-specific prediction tasks.
+
+### Tree-number selection
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{Figure/random_forest_tree_selection_auc.png}
+\caption{Mean five-fold training-set cross-validation ROC-AUC for Random Forest models containing 100, 250, 500, 750, and 1,000 trees. Separate curves represent the six policy-intensity and behavioural-outcome tasks. The figure was generated in cell 7 of \texttt{06\_rf\_xgboost\_tree\_selection.ipynb}.}
+\label{fig:rf-tree-selection}
+\end{figure}
+
+Figure \ref{fig:rf-tree-selection} reports the five-fold training-set cross-validation results from the Random Forest tree-number selection in cells 6--7 of "06_rf_xgboost_tree_selection.ipynb". This operation selected 500 trees for the subsequent Random Forest models.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{Figure/xgboost_tree_selection_auc.png}
+\caption{Mean five-fold training-set cross-validation ROC-AUC for XGBoost models containing 100, 250, 500, 750, and 1,000 trees. Separate curves represent the six policy-intensity and behavioural-outcome tasks. The figure was generated in cell 9 of \texttt{06\_rf\_xgboost\_tree\_selection.ipynb}.}
+\label{fig:xgb-tree-selection}
+\end{figure}
+
+
+Figure \ref{fig:xgb-tree-selection} reports the five-fold training-set cross-validation results from the XGBoost tree-number selection in cells 8--9 of "06_rf_xgboost_tree_selection.ipynb". This operation selected 500 trees for the subsequent XGBoost models.
+
+
+After the tree-number comparison, the remaining hyperparameters were selected separately for each prediction task. The selected values and their mean five-fold training-set cross-validation ROC-AUC results are reported in Appendix D: Selected model parameters (Tables \ref{tab:rf-selected-parameters} and \ref{tab:xgb-selected-parameters}).
+
+
+## Model performance
+
+Using the selected hyperparameters, the final models were fitted and evaluated on their corresponding held-out test sets. Table \ref{tab:all-test-metrics} presents accuracy, precision, recall, F1-score, and ROC-AUC on the held-out test sets for all 12 fitted models. The Random Forest values were generated in cells 2--7 of "08_random_forest_models.ipynb", and the XGBoost values were generated in cells 2--7 of "09_xgboost_models.ipynb".
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{|p{0.15\textwidth}|p{0.08\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|p{0.08\textwidth}|p{0.08\textwidth}|p{0.1\textwidth}|}
+\hline
+\textbf{Model} & \textbf{Policy} & \textbf{Outcome} & \textbf{Accuracy} & \textbf{Precision} & \textbf{Recall} & \textbf{F1} & \textbf{ROC-AUC} \\ \hline
+Random Forest & Low & Face mask & 0.875 & 0.890 & 0.940 & 0.914 & 0.939 \\ \hline
+Random Forest & Low & Protective & 0.773 & 0.780 & 0.948 & 0.856 & 0.834 \\ \hline
+Random Forest & Medium & Face mask & 0.820 & 0.836 & 0.813 & 0.825 & 0.892 \\ \hline
+Random Forest & Medium & Protective & 0.730 & 0.754 & 0.850 & 0.799 & 0.780 \\ \hline
+Random Forest & High & Face mask & 0.828 & 0.842 & 0.820 & 0.831 & 0.886 \\ \hline
+Random Forest & High & Protective & 0.773 & 0.793 & 0.887 & 0.838 & 0.846 \\ \hline
+XGBoost & Low & Face mask & 0.887 & 0.907 & 0.936 & 0.921 & 0.926 \\ \hline
+XGBoost & Low & Protective & 0.785 & 0.811 & 0.908 & 0.857 & 0.835 \\ \hline
+XGBoost & Medium & Face mask & 0.826 & 0.842 & 0.819 & 0.831 & 0.895 \\ \hline
+XGBoost & Medium & Protective & 0.736 & 0.771 & 0.828 & 0.798 & 0.789 \\ \hline
+XGBoost & High & Face mask & 0.827 & 0.836 & 0.827 & 0.831 & 0.892 \\ \hline
+XGBoost & High & Protective & 0.781 & 0.808 & 0.877 & 0.841 & 0.856 \\ \hline
+\end{tabular}
+\caption{Held-out test performance for all Random Forest and XGBoost prediction tasks. Precision, recall, and F1-score use class 1 as the positive class.}
+\label{tab:all-test-metrics}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=1\textwidth]{Figure/auc_rf_xgboost_comparison.png}
+\caption{Held-out test ROC-AUC for Random Forest and XGBoost by policy-intensity level and behavioural outcome. The plotted values were generated from the model results in cells 2--7 of \texttt{08\_random\_forest\_models.ipynb} and \texttt{09\_xgboost\_models.ipynb}, and the figure was produced in cell 4 of \texttt{10\_plots.ipynb}.}
+\label{fig:auc-model-comparison}
+\end{figure}
+
+Figure \ref{fig:auc-model-comparison} reports the held-out test ROC-AUC results generated in cells 2--7 of "08_random_forest_models.ipynb" and "09_xgboost_models.ipynb"; the comparison figure was produced in cell 4 of "10_plots.ipynb".
+
+## Feature importance results
+
+### Low policy intensity
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=1.0\textwidth]{Figure/low_policy_feature_importance.png}
+\caption{Top ten features under low policy intensity for the face-mask and overall protective-behaviour models. Bars show median feature importance across 100 fitted models, and error bars show the interquartile range.}
+\label{fig:low-policy-feature-importance}
+\end{figure}
+
+Figure \ref{fig:low-policy-feature-importance} reports the top-ten median feature-importance estimates and interquartile ranges from 100 repeated fits for the low-intensity tasks. The source estimates were generated in cells 2--7 of "08_random_forest_models.ipynb" and "09_xgboost_models.ipynb", and the figure was produced in cells 7--8 of "10_plots.ipynb".
+
+### Medium policy intensity
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=1.0\textwidth]{Figure/medium_policy_feature_importance.png}
+\caption{Top ten features under medium policy intensity for the face-mask and overall protective-behaviour models. Bars show median feature importance across 100 fitted models, and error bars show the interquartile range.}
+\label{fig:medium-policy-feature-importance}
+\end{figure}
+
+Figure \ref{fig:medium-policy-feature-importance} reports the top-ten median feature-importance estimates and interquartile ranges from 100 repeated fits for the medium-intensity tasks. The source estimates were generated in cells 2--7 of "08_random_forest_models.ipynb" and "09_xgboost_models.ipynb", and the figure was produced in cells 7 and 9 of "10_plots.ipynb".
+
+### High policy intensity
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=1.0\textwidth]{Figure/high_policy_feature_importance.png}
+\caption{Top ten features under high policy intensity for the face-mask and overall protective-behaviour models. Bars show median feature importance across 100 fitted models, and error bars show the interquartile range.}
+\label{fig:high-policy-feature-importance}
+\end{figure}
+
+Figure \ref{fig:high-policy-feature-importance} reports the top-ten median feature-importance estimates and interquartile ranges from 100 repeated fits for the high-intensity tasks. The source estimates were generated in cells 2--7 of "08_random_forest_models.ipynb" and "09_xgboost_models.ipynb", and the figure was produced in cells 7 and 10 of "10_plots.ipynb".
+
+# Discussion
+
+## Interpretation of the main findings
+
+### Predictive basis for interpreting feature importance
+
+Held-out ROC-AUC values of 0.780--0.939, supported by accuracy and F1-scores, showed that all twelve models distinguished the outcome classes sufficiently for feature-importance analysis. Stronger discrimination for face-mask behaviour may reflect its narrower definition: mask wearing is one visible action, whereas general protective behaviour combines distancing, avoiding crowds, hygiene and mask wearing. These practices may not share the same predictive structure, so a single variable set may separate mask-use classes more clearly than a collection of protective routines.
+
+Importance estimates were based on 100 fits with different random seeds. Ranking by median importance and reporting interquartile ranges reduced the influence of unusual fits.
+
+### Face-mask behaviour and the policy-time environment
+
+Face-mask behaviour was closely associated with policy and time. Mask wearing could be targeted directly by public messages and legal requirements, and the health-policy score included the OxCGRT facial-covering indicator. This correspondence helps explain the prominence of health policy.
+
+Under low policy intensity, `week_number` led both algorithms; health and containment policy appeared in both top-ten rankings, but economic policy appeared only in XGBoost (Figure \ref{fig:low-policy-feature-importance}). Survey timing and policies directly connected to public-health restrictions were therefore informative even in a relatively weak policy environment, while economic policy had a secondary role. Under medium intensity, health policy and survey period were the two leading features in both models, with all three policy domains in both rankings (Figure \ref{fig:medium-policy-feature-importance}). Under high intensity, both algorithms ranked health policy, containment policy and survey period as the same three leading features, while economic policy remained in both top tens (Figure \ref{fig:high-policy-feature-importance}). Thus, the policy-time pattern was consistent across algorithms, particularly at medium and high intensity.
+
+`week_number` may capture changes in case numbers, public knowledge, social norms, mask availability, vaccination, pandemic experience and policy changes not completely represented by the domain scores. Its prominence indicates that pandemic stage provided predictive information beyond the three policy scores.
+
+These findings accord with reports of higher mask use where mask rules applied [@bray2023, pp. e89--e91] and cross-national evidence identifying containment and health interventions as leading mask predictors [@scantamburlo2025, p. 7]. Economic support may act indirectly by enabling compliance when restrictions affect work or mobility [@haldane2021, p. 3]. Because policy domains often changed together, their joint prominence reflects the wider policy environment rather than separable effects [@brauner2021, p. 802].
+
+### General protective behaviour and individual factors
+
+General protective behaviour showed a different balance, perhaps because reducing contacts or isolating leaves more individual choice than following a mask instruction.
+
+Under low intensity, both algorithms identified recent contacts, perceived severity, survey period and willingness to self-isolate as important (Figure \ref{fig:low-policy-feature-importance}); Random Forest ranked contacts first and XGBoost ranked severity first. At medium intensity, contacts, severity and age remained prominent in Random Forest, whereas XGBoost emphasised severity and self-isolation responses (Figure \ref{fig:medium-policy-feature-importance}). Individual factors therefore continued to lead. Under high intensity, containment policy became the leading predictor in both algorithms, although contacts, severity and self-isolation remained in the top ten (Figure \ref{fig:high-policy-feature-importance}). The models consequently captured both surrounding restrictions and respondents' circumstances.
+
+Perceived severity may influence whether protection seems necessary; recent contacts may represent both exposure opportunity and the practical difficulty of limiting interaction; and willingness to self-isolate may indicate readiness to follow health advice when protection carries personal costs. These distinct meanings help explain why the broader outcome retained more individual-level information. Consistently, an Australian survey linked concern and perceived severity to distancing and hygiene [@faasse2020, p. 7]. Ryan et al. identified illness threat, age, contacts and survey week as recurring predictors, with willingness to isolate prominent after mask mandates [@ryan2025, p. 12]. Here, the latter may represent broader readiness to adopt protective action.
+
+
+### Overall answer to the research question
+
+Important predictors changed across policy intensity, but differently by outcome. Face-mask behaviour was consistently associated with health policy, containment policy and survey period, with the strongest algorithmic agreement at medium and high intensity. General protective behaviour retained a stronger individual component: perceived severity, contacts, age and willingness to self-isolate remained important, although containment policy led both high-intensity models.
+
+Higher policy intensity therefore changed the balance between policy and individual predictors rather than simply replacing one with the other. Survey period, health policy and containment policy recurred for mask behaviour, while contacts, perceived severity and self-isolation responses recurred for general protection. Employment categories and confidence in health services appeared more selectively, suggesting greater dependence on policy setting or algorithm. Overall, the variables distinguishing frequent from less frequent protection varied with both policy intensity and behaviour type, supporting the conclusion that predictive contributors changed across policy conditions rather than following one uniform pattern.
+
+
+## Limitations
+
+The policy groups differed in size and composition. The low-intensity group contained 1,763 respondents, versus 13,700 and 16,700 in the medium- and high-intensity groups, and had more positive outcomes. Its relatively strong face-mask performance may therefore reflect sample composition, class balance, pandemic period or easier separation. Its importance rankings may also be less stable. Because groups came from different periods and could differ in population, epidemic conditions and policy combinations, importance differences cannot be attributed entirely to policy intensity.
+
+Respondents were randomly split at the individual level, allowing observations from the same state and nearby dates into both sets. The test set was therefore not independent in time or policy context. Performance represents prediction of held-out respondents in broadly similar settings, not a future pandemic phase or unseen state.
+
+This distinction matters because apparently strong within-context discrimination should not be interpreted as evidence that the fitted relationships would remain stable across jurisdictions or later phases of the pandemic.
+
+YouGov is repeated cross-sectional rather than longitudinal. Respondents under different policy intensities were not necessarily the same people, so results describe sample differences rather than within-person behavioural change.
+
+Complete-case filtering may have made the final sample systematically different from the original. Because missingness may be related to respondent characteristics or behaviour, this decision could also alter predictor distributions and observed associations in the sample. Survey weights were not used, so results are not population estimates for all Australians. Excluding PHQ-4 variables during missing-data screening also prevented assessment of mental health.
+
+The policy-intensity measure equally weighted containment, economic and health domain means before categorisation. This reduced a complex environment to one ordered variable; observations in the same category could represent different policy combinations. The categories therefore indicate broad conditions, not uniform regimes.
+
+Finally, unmeasured epidemic conditions, social norms, enforcement and attitudes may have influenced both policy and behaviour. Feature importance cannot establish causal policy effects. The findings describe predictive patterns among Australian respondents during the study period and have limited generalisability beyond that setting.
+
+# Conclusion
+
+This project examined how predictors of face-mask behaviour and general protective behaviour varied across low, medium and high levels of multi-policy intensity in Australia during COVID-19. YouGov survey responses were linked by state and date to OxCGRT policy data, and Random Forest and XGBoost models were fitted within each policy-intensity group.
+
+Held-out ROC-AUC values ranged from 0.780 to 0.939. Face-mask behaviour was primarily distinguished by health policy, containment policy and survey period, particularly under medium and high intensity. General protective behaviour retained stronger contributions from perceived illness severity, recent contacts, age and willingness to self-isolate, although containment policy became the leading predictor under high intensity. These findings extend previous mandate-centred research by showing that predictive patterns also vary across broader policy conditions.
+
+In practice, public-health communication may need to be adapted to both the policy environment and the behaviour being promoted. Mask communication could be coordinated with clear health and containment policies, while broader protective behaviour may require additional attention to risk perception, social contacts and willingness to isolate. These implications are hypotheses for intervention design rather than evidence of causal effectiveness. Future research should use survey weights, temporally grouped validation, alternative policy-intensity definitions and model-independent importance methods to test their robustness.
+
+# Acknowledgements
+
+I would like to express my sincere gratitude to Dr Anthony Mays, Liangning Jin and Richard Bailey for their guidance on the final report and for answering questions throughout the second semester. I am also grateful to Dr Matthew Ryan for his guidance during Part A, particularly in supporting the reproduction of the analysis from his 2025 study. I would further like to thank Adelaide University for providing a supportive learning environment. Finally, OpenAI's ChatGPT was used to assist with identifying grammatical errors and improving sentence structure.
+
+# References
+
+::: {#refs}
+:::
+
+\newpage
+
+# Statistical appendix
+
+## Appendix A: Cleaned YouGov variables
+
+Table \ref{tab:yougov-variables} records the variables retained after YouGov preprocessing. It supports the processing description without interrupting the main Results section with a full data dictionary.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{ |p{0.3\textwidth}|p{0.6\textwidth}| }
+\hline
+\textbf{Variable} & \textbf{Meaning} \\ \hline
+\texttt{endtime} & Survey completion date \\ \hline
+\texttt{state} & Australian state or territory \\ \hline
+\texttt{i2\_health} & Number of recent physical contacts outside the household \\ \hline
+\texttt{i9\_health} & Intention to self-isolate after developing COVID-19 symptoms \\ \hline
+\texttt{i11\_health} & Willingness to self-isolate if advised by a health authority \\ \hline
+\texttt{age} & Respondent age \\ \hline
+\texttt{gender} & Respondent gender \\ \hline
+\texttt{household\_size} & Number of people in the household, coded from 1 to 8; 8 represents 8 or more \\ \hline
+\texttt{employment\_status} & Current employment situation \\ \hline
+\texttt{WCRex2} & Confidence in the health-system response to COVID-19 \\ \hline
+\texttt{cantril\_ladder} & Current life evaluation on a scale from 0 to 10 \\ \hline
+\texttt{WCRex1} & Evaluation of the government's handling of COVID-19 \\ \hline
+\texttt{r1\_1} & Agreement that COVID-19 is personally dangerous, measured from 1 to 7 \\ \hline
+\texttt{r1\_2} & Agreement that future COVID-19 infection is likely, measured from 1 to 7 \\ \hline
+\texttt{week\_number} & Consecutive 14-day survey period \\ \hline
+\texttt{face\_mask\_behaviour\_binary} & Binary face-mask outcome: 1 indicates a median score of at least 4; 0 indicates a score below 4 \\ \hline
+\texttt{protective\_behaviour\_binary} & Binary general protective-behaviour outcome: 1 indicates a median score of at least 4; 0 indicates a score below 4 \\ \hline
+\texttt{d1\_comorbidities} & Comorbidity status: Yes indicates at least one listed condition; No indicates none of the listed conditions \\ \hline
+\end{tabular}
+\caption{Variables retained in the cleaned YouGov dataset after preprocessing.}
+\label{tab:yougov-variables}
+\end{table}
+
+\newpage
+
+## Appendix B: OxCGRT policy indicators
+
+Table \ref{tab:oxcgrt-variables} records the 15 OxCGRT indicators retained after completeness and correlation screening. It identifies the policy domain used to construct each domain score and gives the meaning and original maximum value of each indicator.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{ |p{0.25\textwidth}|p{0.15\textwidth}|p{0.4\textwidth}|p{0.1\textwidth}| }
+\hline
+\textbf{OxCGRT indicator} & \textbf{Domain} & \textbf{Meaning} & \textbf{Maximum} \\ \hline
+\texttt{C1M\_School closing} & Containment & School and university closure requirements & 3 \\ \hline
+\texttt{C2M\_Workplace closing} & Containment & Workplace closure or work-from-home requirements & 3 \\ \hline
+\texttt{C4M\_Restrictions on gatherings} & Containment & Limits on the permitted size of gatherings & 4 \\ \hline
+\texttt{C5M\_Close public transport} & Containment & Recommended or required closure of public transport & 2 \\ \hline
+\texttt{C6M\_Stay at home requirements} & Containment & Recommendations or requirements to remain at home & 3 \\ \hline
+\texttt{C7M\_Restrictions on internal movement} & Containment & Restrictions on travel between cities or regions & 2 \\ \hline
+\texttt{C8EV\_International travel controls} & Containment & Restrictions applying to international arrivals & 4 \\ \hline
+\texttt{E1\_Income support} & Economic & Income replacement for people unable to work & 2 \\ \hline
+\texttt{E2\_Debt/contract relief} & Economic & Relief from household financial obligations & 2 \\ \hline
+\texttt{H1\_Public information campaigns} & Health system & Government COVID-19 information campaigns & 2 \\ \hline
+\texttt{H2\_Testing policy} & Health system & Eligibility and access rules for infection testing & 3 \\ \hline
+\texttt{H3\_Contact tracing} & Health system & Extent of contact tracing after a positive diagnosis & 2 \\ \hline
+\texttt{H6M\_Facial Coverings} & Health system & Recommendations or requirements to wear facial coverings & 4 \\ \hline
+\texttt{H7\_Vaccination policy} & Health system & Availability of vaccination to population groups & 5 \\ \hline
+\texttt{H8M\_Protection of elderly people} & Health system & Measures protecting older people in care and community settings & 3 \\ \hline
+\end{tabular}
+\caption{OxCGRT policy indicators retained for construction of the three policy-domain scores.}
+\label{tab:oxcgrt-variables}
+\end{table}
+
+\newpage
+
+## Appendix C: Columns in the encoded merged dataset
+
+Table \ref{tab:merged-columns} lists the 32 columns retained in the encoded merged dataset before stratification by policy-intensity level.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{ |p{0.05\textwidth}|p{0.35\textwidth}|p{0.05\textwidth}|p{0.35\textwidth}| }
+\hline
+\textbf{No.} & \textbf{Column} & \textbf{No.} & \textbf{Column} \\ \hline
+1 & \texttt{i2\_health} & 17 & \texttt{i11\_health\_Somewhat unwilling} \\ \hline
+2 & \texttt{age} & 18 & \texttt{i11\_health\_Somewhat willing} \\ \hline
+3 & \texttt{household\_size} & 19 & \texttt{i11\_health\_Very unwilling} \\ \hline
+4 & \texttt{cantril\_ladder} & 20 & \texttt{i11\_health\_Very willing} \\ \hline
+5 & \texttt{r1\_1} & 21 & \texttt{gender\_Male} \\ \hline
+6 & \texttt{r1\_2} & 22 & \texttt{employment\_status\_Not working} \\ \hline
+7 & \texttt{week\_number} & 23 & \texttt{employment\_status\_Part time employment} \\ \hline
+8 & \texttt{face\_mask\_behaviour\_binary} & 24 & \texttt{employment\_status\_Retired} \\ \hline
+9 & \texttt{protective\_behaviour\_binary} & 25 & \texttt{employment\_status\_Unemployed} \\ \hline
+10 & \texttt{C\_policy\_mean} & 26 & \texttt{WCRex2\_A lot of confidence} \\ \hline
+11 & \texttt{E\_policy\_mean} & 27 & \texttt{WCRex2\_No confidence at all} \\ \hline
+12 & \texttt{H\_policy\_mean} & 28 & \texttt{WCRex2\_Not very much confidence} \\ \hline
+13 & \texttt{policy\_intensity\_level} & 29 & \texttt{WCRex1\_Somewhat well} \\ \hline
+14 & \texttt{i9\_health\_Not sure} & 30 & \texttt{WCRex1\_Very badly} \\ \hline
+15 & \texttt{i9\_health\_Yes} & 31 & \texttt{WCRex1\_Very well} \\ \hline
+16 & \texttt{i11\_health\_Not sure} & 32 & \texttt{d1\_comorbidities\_Yes} \\ \hline
+\end{tabular}
+\caption{Columns in the encoded merged dataset before policy-level stratification.}
+\label{tab:merged-columns}
+\end{table}
+
+\newpage
+
+## Appendix D: Selected model parameters
+
+Table \ref{tab:rf-selected-parameters} gives the Random Forest parameters selected by 200 Optuna trials using mean five-fold training-set ROC-AUC. The results were saved by cells 2--7 of "08_random_forest_models.ipynb" in the corresponding `Final Report/Model/rf_*_params.json` files.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{ |p{0.08\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|p{0.08\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}| }
+\hline
+\textbf{Policy} & \textbf{Outcome} & \textbf{CV AUC} & \textbf{Depth} & \textbf{Min. split} & \textbf{Min. leaf} & \textbf{Max. features} \\ \hline
+Low & Face mask & 0.878 & 10 & 5 & 8 & 0.5 \\ \hline
+Low & Protective & 0.815 & 18 & 5 & 5 & log2 \\ \hline
+Medium & Face mask & 0.886 & 22 & 10 & 2 & 0.5 \\ \hline
+Medium & Protective & 0.788 & 26 & 2 & 2 & sqrt \\ \hline
+High & Face mask & 0.894 & 28 & 10 & 2 & 0.5 \\ \hline
+High & Protective & 0.837 & 29 & 5 & 1 & log2 \\ \hline
+\end{tabular}
+\caption{Selected Random Forest hyperparameters and their mean five-fold training-set cross-validation ROC-AUC. All models used 500 trees.}
+\label{tab:rf-selected-parameters}
+\end{table}
+
+Table \ref{tab:xgb-selected-parameters} gives the XGBoost parameters selected by 200 Optuna trials using mean five-fold training-set ROC-AUC. The results were saved by cells 2--7 of "09_xgboost_models.ipynb" in the corresponding `Final Report/Model/xgb_*_params.json` files.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{ |p{0.08\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|p{0.08\textwidth}|p{0.1\textwidth}|p{0.12\textwidth}|p{0.12\textwidth}| }
+\hline
+\textbf{Policy} & \textbf{Outcome} & \textbf{CV AUC} & \textbf{Depth} & \textbf{Learning rate} & \textbf{Subsample} & \textbf{Colsample by tree} \\ \hline
+Low & Face mask & 0.880 & 4 & 0.0135 & 0.9993 & 0.5506 \\ \hline
+Low & Protective & 0.820 & 2 & 0.0302 & 0.8147 & 0.6347 \\ \hline
+Medium & Face mask & 0.890 & 8 & 0.0160 & 0.9573 & 0.5047 \\ \hline
+Medium & Protective & 0.797 & 4 & 0.0429 & 0.8534 & 0.6309 \\ \hline
+High & Face mask & 0.898 & 10 & 0.0165 & 0.7783 & 0.6282 \\ \hline
+High & Protective & 0.846 & 5 & 0.0465 & 0.8167 & 0.5689 \\ \hline
+\end{tabular}
+\caption{Selected XGBoost hyperparameters and their mean five-fold training-set cross-validation ROC-AUC. All models used 500 trees.}
+\label{tab:xgb-selected-parameters}
+\end{table}
+
+\newpage
+
+## Appendix E: Random Forest training function
+
+The `tune_random_forest()` function trains candidate Random Forest models using the training data only. It evaluates each Optuna parameter combination with shuffled five-fold stratified cross-validation, maximises mean ROC-AUC and returns the completed Optuna study. The function is located in lines 33--81 of "Project code/Code/07_model_functions.py".
+
+\footnotesize
+
+```{python, eval=FALSE, python.reticulate=FALSE}
+def tune_random_forest(
+    X_train,
+    y_train,
+    n_estimators=500,
+    n_trials=200,
+    random_state=3034,
+):
+    cv = StratifiedKFold(
+        n_splits=5,
+        shuffle=True,
+        random_state=random_state,
+    )
+
+    def objective(trial):
+        model = RandomForestClassifier(
+            n_estimators=n_estimators,
+            max_depth=trial.suggest_int("max_depth", 10, 40),
+            min_samples_split=trial.suggest_int(
+                "min_samples_split", 2, 10
+            ),
+            min_samples_leaf=trial.suggest_int(
+                "min_samples_leaf", 1, 10
+            ),
+            max_features=trial.suggest_categorical(
+                "max_features", ["sqrt", "log2", 0.5, None]
+            ),
+            random_state=random_state,
+            n_jobs=1,
+        )
+
+        auc_scores = cross_val_score(
+            model,
+            X_train,
+            y_train,
+            cv=cv,
+            scoring="roc_auc",
+            n_jobs=-1,
+        )
+        return auc_scores.mean()
+
+    sampler = optuna.samplers.TPESampler(seed=random_state)
+    study = optuna.create_study(
+        direction="maximize",
+        sampler=sampler,
+    )
+    study.optimize(objective, n_trials=n_trials)
+
+    return study
+```
+
+\normalsize
+
+\newpage
+
+## Appendix F: XGBoost training function
+
+The `tune_xgboost()` function trains candidate XGBoost models using the training data only. It applies the same five-fold stratified cross-validation and Optuna objective as the Random Forest function while tuning XGBoost-specific learning and sampling parameters. The function is located in lines 139--182 of "Project code/Code/07_model_functions.py".
+
+\footnotesize
+
+```{python, eval=FALSE, python.reticulate=FALSE}
+def tune_xgboost(
+    X_train,
+    y_train,
+    n_estimators,
+    n_trials=200,
+    random_state=3034,
+):
+    cv = StratifiedKFold(
+        n_splits=5,
+        shuffle=True,
+        random_state=random_state,
+    )
+
+    def objective(trial):
+        model = XGBClassifier(
+            n_estimators=n_estimators,
+            max_depth=trial.suggest_int("max_depth", 2, 10),
+            learning_rate=trial.suggest_float("learning_rate", 0.01, 0.1),
+            subsample=trial.suggest_float("subsample", 0.5, 1.0),
+            colsample_bytree=trial.suggest_float("colsample_bytree", 0.5, 1.0),
+            random_state=random_state,
+            eval_metric="logloss",
+            n_jobs=1,
+        )
+
+        auc_scores = cross_val_score(
+            model,
+            X_train,
+            y_train,
+            cv=cv,
+            scoring="roc_auc",
+            n_jobs=-1,
+        )
+
+        return auc_scores.mean()
+
+    sampler = optuna.samplers.TPESampler(seed=random_state)
+    study = optuna.create_study(
+        direction="maximize",
+        sampler=sampler,
+    )
+    study.optimize(objective, n_trials=n_trials)
+
+    return study
+```
+
+\normalsize
+
+\newpage
+
+## Appendix G: Repeated feature-importance function
+
+The `repeated_feature_importance()` function clones and refits a selected tree-based model 100 times with consecutive random seeds. It summarises each predictor by its median importance, first and third quartiles and interquartile range, then ranks predictors by median importance. The function is located in lines 104--135 of "Project code/Code/07_model_functions.py".
+
+\footnotesize
+
+```{python, eval=FALSE, python.reticulate=FALSE}
+def repeated_feature_importance(
+    model,
+    X_train,
+    y_train,
+    n_repeats=100,
+    random_state=3034,
+):
+    importance_list = []
+
+    for i in range(n_repeats):
+        repeated_model = clone(model)
+        repeated_model.set_params(random_state=random_state + i)
+        repeated_model.fit(X_train, y_train)
+        importance_list.append(repeated_model.feature_importances_)
+
+    importance_array = np.array(importance_list)
+
+    importance_results = pd.DataFrame({
+        "feature": X_train.columns,
+        "median_importance": np.median(importance_array, axis=0),
+        "q1": np.percentile(importance_array, 25, axis=0),
+        "q3": np.percentile(importance_array, 75, axis=0),
+    })
+    importance_results["iqr"] = (
+        importance_results["q3"] - importance_results["q1"]
+    )
+    importance_results = importance_results.sort_values(
+        by="median_importance",
+        ascending=False,
+    )
+
+    return importance_results
+```
+
+\normalsize
+
+\newpage
+
+## Appendix H: Top-ten feature-importance estimates
+
+The following tables report the ten highest-ranked predictors from each feature-importance output file. Rank follows descending median importance. Q1, Q3 and IQR are the first quartile, third quartile and interquartile range across 100 repeated fits. All source files are stored in `Project code/Importance`.
+
+### Random Forest
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{|p{0.05\textwidth}|p{0.3\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|}
+\hline
+\textbf{Rank} & \textbf{Feature} & \textbf{Median} & \textbf{Q1} & \textbf{Q3} & \textbf{IQR} \\ \hline
+1 & \texttt{week\_number} & 0.340408 & 0.333245 & 0.345952 & 0.012707 \\ \hline
+2 & \texttt{H\_policy\_mean} & 0.205336 & 0.199091 & 0.211182 & 0.012091 \\ \hline
+3 & \texttt{C\_policy\_mean} & 0.147472 & 0.143646 & 0.150446 & 0.006801 \\ \hline
+4 & \texttt{age} & 0.049312 & 0.048664 & 0.049941 & 0.001278 \\ \hline
+5 & \texttt{i2\_health} & 0.046919 & 0.046339 & 0.047368 & 0.001030 \\ \hline
+6 & \texttt{r1\_1} & 0.040083 & 0.039637 & 0.040702 & 0.001065 \\ \hline
+7 & \texttt{r1\_2} & 0.036101 & 0.035205 & 0.037065 & 0.001860 \\ \hline
+8 & \texttt{i11\_health\_Very willing} & 0.027899 & 0.027414 & 0.028249 & 0.000835 \\ \hline
+9 & \texttt{cantril\_ladder} & 0.017369 & 0.017022 & 0.017729 & 0.000707 \\ \hline
+10 & \texttt{household\_size} & 0.016242 & 0.015889 & 0.016602 & 0.000713 \\ \hline
+\end{tabular}
+\caption{Top-ten Random Forest feature-importance estimates for face-mask behaviour under low policy intensity. Source: \protect\path{rf_low_policy_face_mask_importance.csv}.}
+\label{tab:rf-low-mask-top-ten}
+\end{table}
+
+\begin{table}[H]
+\centering
+\scriptsize
+\begin{tabular}{|p{0.05\textwidth}|p{0.3\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|}
+\hline
+\textbf{Rank} & \textbf{Feature} & \textbf{Median} & \textbf{Q1} & \textbf{Q3} & \textbf{IQR} \\ \hline
+1 & \texttt{i2\_health} & 0.156664 & 0.154973 & 0.158108 & 0.003135 \\ \hline
+2 & \texttt{r1\_1} & 0.123178 & 0.121841 & 0.124792 & 0.002951 \\ \hline
+3 & \texttt{week\_number} & 0.114099 & 0.112326 & 0.115955 & 0.003629 \\ \hline
+4 & \texttt{C\_policy\_mean} & 0.082004 & 0.080827 & 0.083652 & 0.002825 \\ \hline
+5 & \texttt{age} & 0.078675 & 0.077429 & 0.079202 & 0.001773 \\ \hline
+6 & \texttt{H\_policy\_mean} & 0.078414 & 0.076723 & 0.080028 & 0.003304 \\ \hline
+7 & \texttt{i11\_health\_Very willing} & 0.051687 & 0.050436 & 0.052752 & 0.002316 \\ \hline
+8 & \texttt{r1\_2} & 0.050598 & 0.049809 & 0.051531 & 0.001721 \\ \hline
+9 & \texttt{cantril\_ladder} & 0.042826 & 0.042044 & 0.043405 & 0.001360 \\ \hline
+10 & \texttt{household\_size} & 0.035081 & 0.034537 & 0.035612 & 0.001075 \\ \hline
+\end{tabular}
+\caption{Top-ten Random Forest feature-importance estimates for general protective behaviour under low policy intensity. Source: \protect\path{rf_low_policy_protective_importance.csv}.}
+\label{tab:rf-low-protective-top-ten}
+\end{table}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{|p{0.05\textwidth}|p{0.3\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|}
+\hline
+\textbf{Rank} & \textbf{Feature} & \textbf{Median} & \textbf{Q1} & \textbf{Q3} & \textbf{IQR} \\ \hline
+1 & \texttt{H\_policy\_mean} & 0.249787 & 0.246431 & 0.252778 & 0.006347 \\ \hline
+2 & \texttt{week\_number} & 0.201869 & 0.199142 & 0.204475 & 0.005333 \\ \hline
+3 & \texttt{age} & 0.083751 & 0.083546 & 0.084031 & 0.000485 \\ \hline
+4 & \texttt{C\_policy\_mean} & 0.077609 & 0.076488 & 0.078626 & 0.002138 \\ \hline
+5 & \texttt{i2\_health} & 0.060051 & 0.059864 & 0.060257 & 0.000394 \\ \hline
+6 & \texttt{r1\_1} & 0.049654 & 0.049486 & 0.049824 & 0.000338 \\ \hline
+7 & \texttt{cantril\_ladder} & 0.042264 & 0.042115 & 0.042470 & 0.000354 \\ \hline
+8 & \texttt{r1\_2} & 0.040052 & 0.039627 & 0.040472 & 0.000845 \\ \hline
+9 & \texttt{E\_policy\_mean} & 0.035711 & 0.035348 & 0.036097 & 0.000749 \\ \hline
+10 & \texttt{household\_size} & 0.029449 & 0.029336 & 0.029576 & 0.000240 \\ \hline
+\end{tabular}
+\caption{Top-ten Random Forest feature-importance estimates for face-mask behaviour under medium policy intensity. Source: \protect\path{rf_medium_policy_face_mask_importance.csv}.}
+\label{tab:rf-medium-mask-top-ten}
+\end{table}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{|p{0.05\textwidth}|p{0.3\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|}
+\hline
+\textbf{Rank} & \textbf{Feature} & \textbf{Median} & \textbf{Q1} & \textbf{Q3} & \textbf{IQR} \\ \hline
+1 & \texttt{i2\_health} & 0.132930 & 0.132654 & 0.133191 & 0.000538 \\ \hline
+2 & \texttt{r1\_1} & 0.108549 & 0.108218 & 0.108823 & 0.000605 \\ \hline
+3 & \texttt{age} & 0.101659 & 0.101426 & 0.101892 & 0.000466 \\ \hline
+4 & \texttt{week\_number} & 0.100140 & 0.099611 & 0.100627 & 0.001016 \\ \hline
+5 & \texttt{H\_policy\_mean} & 0.078256 & 0.077886 & 0.078597 & 0.000711 \\ \hline
+6 & \texttt{C\_policy\_mean} & 0.060311 & 0.060136 & 0.060619 & 0.000483 \\ \hline
+7 & \texttt{cantril\_ladder} & 0.059207 & 0.059024 & 0.059391 & 0.000367 \\ \hline
+8 & \texttt{r1\_2} & 0.058160 & 0.057931 & 0.058380 & 0.000449 \\ \hline
+9 & \texttt{household\_size} & 0.046901 & 0.046740 & 0.047051 & 0.000311 \\ \hline
+10 & \texttt{E\_policy\_mean} & 0.024406 & 0.024291 & 0.024565 & 0.000274 \\ \hline
+\end{tabular}
+\caption{Top-ten Random Forest feature-importance estimates for general protective behaviour under medium policy intensity. Source: \protect\path{rf_medium_policy_protective_importance.csv}.}
+\label{tab:rf-medium-protective-top-ten}
+\end{table}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{|p{0.05\textwidth}|p{0.3\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|}
+\hline
+\textbf{Rank} & \textbf{Feature} & \textbf{Median} & \textbf{Q1} & \textbf{Q3} & \textbf{IQR} \\ \hline
+1 & \texttt{H\_policy\_mean} & 0.261499 & 0.258347 & 0.264488 & 0.006142 \\ \hline
+2 & \texttt{C\_policy\_mean} & 0.159660 & 0.158280 & 0.161587 & 0.003307 \\ \hline
+3 & \texttt{week\_number} & 0.157767 & 0.155316 & 0.159706 & 0.004390 \\ \hline
+4 & \texttt{age} & 0.079379 & 0.079194 & 0.079572 & 0.000379 \\ \hline
+5 & \texttt{i2\_health} & 0.058250 & 0.058070 & 0.058447 & 0.000377 \\ \hline
+6 & \texttt{r1\_1} & 0.044399 & 0.044234 & 0.044591 & 0.000357 \\ \hline
+7 & \texttt{cantril\_ladder} & 0.040918 & 0.040756 & 0.041079 & 0.000323 \\ \hline
+8 & \texttt{r1\_2} & 0.035972 & 0.035803 & 0.036128 & 0.000326 \\ \hline
+9 & \texttt{household\_size} & 0.027573 & 0.027495 & 0.027696 & 0.000201 \\ \hline
+10 & \texttt{E\_policy\_mean} & 0.018114 & 0.017370 & 0.018818 & 0.001448 \\ \hline
+\end{tabular}
+\caption{Top-ten Random Forest feature-importance estimates for face-mask behaviour under high policy intensity. Source: \protect\path{rf_high_policy_face_mask_importance.csv}.}
+\label{tab:rf-high-mask-top-ten}
+\end{table}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{|p{0.05\textwidth}|p{0.3\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|}
+\hline
+\textbf{Rank} & \textbf{Feature} & \textbf{Median} & \textbf{Q1} & \textbf{Q3} & \textbf{IQR} \\ \hline
+1 & \texttt{C\_policy\_mean} & 0.141631 & 0.140473 & 0.142799 & 0.002326 \\ \hline
+2 & \texttt{i2\_health} & 0.136798 & 0.136214 & 0.137291 & 0.001076 \\ \hline
+3 & \texttt{age} & 0.087749 & 0.087522 & 0.087949 & 0.000427 \\ \hline
+4 & \texttt{H\_policy\_mean} & 0.087335 & 0.086631 & 0.088205 & 0.001574 \\ \hline
+5 & \texttt{week\_number} & 0.085082 & 0.084573 & 0.085500 & 0.000927 \\ \hline
+6 & \texttt{r1\_1} & 0.076580 & 0.076353 & 0.076886 & 0.000533 \\ \hline
+7 & \texttt{cantril\_ladder} & 0.055384 & 0.055261 & 0.055578 & 0.000318 \\ \hline
+8 & \texttt{r1\_2} & 0.048563 & 0.048417 & 0.048733 & 0.000317 \\ \hline
+9 & \texttt{household\_size} & 0.043388 & 0.043247 & 0.043591 & 0.000344 \\ \hline
+10 & \texttt{E\_policy\_mean} & 0.022021 & 0.021732 & 0.022296 & 0.000564 \\ \hline
+\end{tabular}
+\caption{Top-ten Random Forest feature-importance estimates for general protective behaviour under high policy intensity. Source: \protect\path{rf_high_policy_protective_importance.csv}.}
+\label{tab:rf-high-protective-top-ten}
+\end{table}
+
+\newpage
+
+### XGBoost
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{|p{0.05\textwidth}|p{0.3\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|}
+\hline
+\textbf{Rank} & \textbf{Feature} & \textbf{Median} & \textbf{Q1} & \textbf{Q3} & \textbf{IQR} \\ \hline
+1 & \texttt{week\_number} & 0.155478 & 0.147794 & 0.163989 & 0.016195 \\ \hline
+2 & \texttt{H\_policy\_mean} & 0.115407 & 0.109581 & 0.123828 & 0.014247 \\ \hline
+3 & \texttt{E\_policy\_mean} & 0.100420 & 0.087606 & 0.112525 & 0.024918 \\ \hline
+4 & \texttt{C\_policy\_mean} & 0.086472 & 0.083282 & 0.090214 & 0.006932 \\ \hline
+5 & \texttt{i11\_health\_Very willing} & 0.057984 & 0.055867 & 0.059804 & 0.003937 \\ \hline
+6 & \texttt{r1\_2} & 0.036101 & 0.034502 & 0.037267 & 0.002764 \\ \hline
+7 & \texttt{i11\_health\_Somewhat willing} & 0.027248 & 0.025101 & 0.028616 & 0.003515 \\ \hline
+8 & \texttt{r1\_1} & 0.026918 & 0.026361 & 0.027465 & 0.001105 \\ \hline
+9 & \texttt{i9\_health\_Yes} & 0.026657 & 0.025606 & 0.027666 & 0.002060 \\ \hline
+10 & \texttt{i9\_health\_Not sure} & 0.025588 & 0.024418 & 0.026962 & 0.002544 \\ \hline
+\end{tabular}
+\caption{Top-ten XGBoost feature-importance estimates for face-mask behaviour under low policy intensity. Source: \protect\path{xgb_low_policy_face_mask_importance.csv}.}
+\label{tab:xgb-low-mask-top-ten}
+\end{table}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{|p{0.05\textwidth}|p{0.3\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|}
+\hline
+\textbf{Rank} & \textbf{Feature} & \textbf{Median} & \textbf{Q1} & \textbf{Q3} & \textbf{IQR} \\ \hline
+1 & \texttt{r1\_1} & 0.087862 & 0.085085 & 0.089960 & 0.004875 \\ \hline
+2 & \texttt{i11\_health\_Very willing} & 0.085021 & 0.082336 & 0.087466 & 0.005131 \\ \hline
+3 & \texttt{i2\_health} & 0.078968 & 0.077005 & 0.081265 & 0.004260 \\ \hline
+4 & \texttt{week\_number} & 0.073476 & 0.071184 & 0.075710 & 0.004526 \\ \hline
+5 & \texttt{i9\_health\_Yes} & 0.059748 & 0.056560 & 0.061878 & 0.005318 \\ \hline
+6 & \texttt{i9\_health\_Not sure} & 0.046973 & 0.043634 & 0.050519 & 0.006885 \\ \hline
+7 & \texttt{C\_policy\_mean} & 0.046570 & 0.043904 & 0.049181 & 0.005277 \\ \hline
+8 & \texttt{E\_policy\_mean} & 0.035398 & 0.030972 & 0.039199 & 0.008228 \\ \hline
+9 & \texttt{H\_policy\_mean} & 0.034344 & 0.032598 & 0.035811 & 0.003214 \\ \hline
+10 & \texttt{WCRex2\_No confidence at all} & 0.033704 & 0.032009 & 0.035847 & 0.003838 \\ \hline
+\end{tabular}
+\caption{Top-ten XGBoost feature-importance estimates for general protective behaviour under low policy intensity. Source: \protect\path{xgb_low_policy_protective_importance.csv}.}
+\label{tab:xgb-low-protective-top-ten}
+\end{table}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{|p{0.05\textwidth}|p{0.3\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|}
+\hline
+\textbf{Rank} & \textbf{Feature} & \textbf{Median} & \textbf{Q1} & \textbf{Q3} & \textbf{IQR} \\ \hline
+1 & \texttt{H\_policy\_mean} & 0.179026 & 0.172109 & 0.188041 & 0.015932 \\ \hline
+2 & \texttt{week\_number} & 0.099611 & 0.095425 & 0.103973 & 0.008548 \\ \hline
+3 & \texttt{E\_policy\_mean} & 0.070861 & 0.067061 & 0.076207 & 0.009145 \\ \hline
+4 & \texttt{C\_policy\_mean} & 0.060039 & 0.057696 & 0.063080 & 0.005384 \\ \hline
+5 & \texttt{i11\_health\_Very unwilling} & 0.049368 & 0.047853 & 0.051444 & 0.003591 \\ \hline
+6 & \texttt{i11\_health\_Very willing} & 0.043647 & 0.042500 & 0.044891 & 0.002391 \\ \hline
+7 & \texttt{r1\_1} & 0.035173 & 0.034472 & 0.036347 & 0.001875 \\ \hline
+8 & \texttt{i9\_health\_Not sure} & 0.026133 & 0.025596 & 0.026584 & 0.000988 \\ \hline
+9 & \texttt{r1\_2} & 0.025425 & 0.024692 & 0.026533 & 0.001841 \\ \hline
+10 & \texttt{WCRex2\_No confidence at all} & 0.025045 & 0.024452 & 0.025668 & 0.001216 \\ \hline
+\end{tabular}
+\caption{Top-ten XGBoost feature-importance estimates for face-mask behaviour under medium policy intensity. Source: \protect\path{xgb_medium_policy_face_mask_importance.csv}.}
+\label{tab:xgb-medium-mask-top-ten}
+\end{table}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{|p{0.05\textwidth}|p{0.3\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|}
+\hline
+\textbf{Rank} & \textbf{Feature} & \textbf{Median} & \textbf{Q1} & \textbf{Q3} & \textbf{IQR} \\ \hline
+1 & \texttt{r1\_1} & 0.118531 & 0.114695 & 0.122426 & 0.007730 \\ \hline
+2 & \texttt{i11\_health\_Very willing} & 0.078645 & 0.075685 & 0.081540 & 0.005856 \\ \hline
+3 & \texttt{i9\_health\_Yes} & 0.074016 & 0.071884 & 0.076616 & 0.004732 \\ \hline
+4 & \texttt{i2\_health} & 0.069021 & 0.067281 & 0.070163 & 0.002882 \\ \hline
+5 & \texttt{H\_policy\_mean} & 0.052610 & 0.051226 & 0.053553 & 0.002326 \\ \hline
+6 & \texttt{week\_number} & 0.047699 & 0.046260 & 0.049131 & 0.002871 \\ \hline
+7 & \texttt{i9\_health\_Not sure} & 0.042855 & 0.040539 & 0.045020 & 0.004481 \\ \hline
+8 & \texttt{i11\_health\_Very unwilling} & 0.035853 & 0.033886 & 0.039492 & 0.005606 \\ \hline
+9 & \texttt{C\_policy\_mean} & 0.035217 & 0.034379 & 0.036124 & 0.001745 \\ \hline
+10 & \texttt{i11\_health\_Somewhat willing} & 0.031921 & 0.029799 & 0.033741 & 0.003942 \\ \hline
+\end{tabular}
+\caption{Top-ten XGBoost feature-importance estimates for general protective behaviour under medium policy intensity. Source: \protect\path{xgb_medium_policy_protective_importance.csv}.}
+\label{tab:xgb-medium-protective-top-ten}
+\end{table}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{|p{0.05\textwidth}|p{0.3\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|}
+\hline
+\textbf{Rank} & \textbf{Feature} & \textbf{Median} & \textbf{Q1} & \textbf{Q3} & \textbf{IQR} \\ \hline
+1 & \texttt{H\_policy\_mean} & 0.146475 & 0.139248 & 0.153585 & 0.014337 \\ \hline
+2 & \texttt{C\_policy\_mean} & 0.092902 & 0.090084 & 0.096742 & 0.006659 \\ \hline
+3 & \texttt{week\_number} & 0.062695 & 0.059821 & 0.065282 & 0.005461 \\ \hline
+4 & \texttt{E\_policy\_mean} & 0.061009 & 0.055715 & 0.067569 & 0.011854 \\ \hline
+5 & \texttt{i11\_health\_Very unwilling} & 0.051463 & 0.050193 & 0.053415 & 0.003222 \\ \hline
+6 & \texttt{r1\_1} & 0.030834 & 0.030459 & 0.031420 & 0.000961 \\ \hline
+7 & \texttt{i11\_health\_Very willing} & 0.030541 & 0.029973 & 0.031132 & 0.001159 \\ \hline
+8 & \texttt{employment\_status\_Retired} & 0.027587 & 0.027050 & 0.028241 & 0.001191 \\ \hline
+9 & \texttt{employment\_status\_Not working} & 0.027321 & 0.026862 & 0.027576 & 0.000714 \\ \hline
+10 & \texttt{i2\_health} & 0.026842 & 0.026502 & 0.027294 & 0.000792 \\ \hline
+\end{tabular}
+\caption{Top-ten XGBoost feature-importance estimates for face-mask behaviour under high policy intensity. Source: \protect\path{xgb_high_policy_face_mask_importance.csv}.}
+\label{tab:xgb-high-mask-top-ten}
+\end{table}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{|p{0.05\textwidth}|p{0.3\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|}
+\hline
+\textbf{Rank} & \textbf{Feature} & \textbf{Median} & \textbf{Q1} & \textbf{Q3} & \textbf{IQR} \\ \hline
+1 & \texttt{C\_policy\_mean} & 0.113156 & 0.109183 & 0.117858 & 0.008675 \\ \hline
+2 & \texttt{i11\_health\_Very willing} & 0.074047 & 0.070893 & 0.076464 & 0.005571 \\ \hline
+3 & \texttt{i2\_health} & 0.066858 & 0.065231 & 0.069115 & 0.003884 \\ \hline
+4 & \texttt{r1\_1} & 0.061846 & 0.060064 & 0.063636 & 0.003573 \\ \hline
+5 & \texttt{H\_policy\_mean} & 0.058447 & 0.055854 & 0.062865 & 0.007012 \\ \hline
+6 & \texttt{i9\_health\_Yes} & 0.049454 & 0.047739 & 0.051262 & 0.003523 \\ \hline
+7 & \texttt{i11\_health\_Very unwilling} & 0.044125 & 0.042315 & 0.046002 & 0.003687 \\ \hline
+8 & \texttt{i9\_health\_Not sure} & 0.038481 & 0.036701 & 0.040021 & 0.003320 \\ \hline
+9 & \texttt{E\_policy\_mean} & 0.036753 & 0.032143 & 0.042981 & 0.010838 \\ \hline
+10 & \texttt{week\_number} & 0.034787 & 0.033716 & 0.036215 & 0.002498 \\ \hline
+\end{tabular}
+\caption{Top-ten XGBoost feature-importance estimates for general protective behaviour under high policy intensity. Source: \protect\path{xgb_high_policy_protective_importance.csv}.}
+\label{tab:xgb-high-protective-top-ten}
+\end{table}
+
+\newpage
+
+## Appendix I: Part A reproduced model performance
+
+This appendix presents the model-performance results produced in the Part A reproduction. The tables report ROC-AUC, accuracy, precision, recall and F1-score for Logistic Regression, Decision Tree, Random Forest and XGBoost before and after mask mandates.
+
+### Face-mask behaviour
+
+Figure \ref{fig:part-a-mask-performance} reports the reproduced model-performance metrics for face-mask behaviour before and after mask mandates. The results came from the following notebooks in `Part A Reproduction Code/code/`:
+
+- Logistic Regression: `07_logistic_regression_model.ipynb`.
+- Decision Tree: `08_dt_before_face_mask.ipynb` and `09_dt_after_face_mask.ipynb`.
+- Random Forest: `12_rf_before_face_mask.ipynb` and `13_rf_after_face_mask.ipynb`.
+- XGBoost: `16_xgboost_before_face_mask.ipynb` and `17_xgboost_after_face_mask.ipynb`.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{Figure/Part_A_mask_model_performance.png}
+\caption{Reproduced held-out test performance for face-mask behaviour before and after mask mandates.}
+\label{fig:part-a-mask-performance}
+\end{figure}
+
+\newpage
+
+### General protective behaviour
+
+Figure \ref{fig:part-a-protective-performance} reports the reproduced model-performance metrics for general protective behaviour before and after mask mandates. The results came from the following notebooks in `Part A Reproduction Code/code/`:
+
+- Logistic Regression: `07_logistic_regression_model.ipynb`.
+- Decision Tree: `10_dt_before_protective.ipynb` and `11_dt_after_protective.ipynb`.
+- Random Forest: `14_rf_before_protective.ipynb` and `15_rf_after_protective.ipynb`.
+- XGBoost: `18_xgboost_before_protective.ipynb` and `19_xgboost_after_protective.ipynb`.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{Figure/Part_A_protective_model_performance.png}
+\caption{Reproduced held-out test performance for general protective behaviour before and after mask mandates.}
+\label{fig:part-a-protective-performance}
+\end{figure}
+
+\newpage
+
+## Appendix J: Part A reproduced Random Forest feature importance
+
+This appendix presents the Random Forest feature-importance comparisons produced in the Part A reproduction. The figures compare median feature importance before and after mask mandates, with error bars showing the interquartile range across repeated model fits.
+
+### Face-mask behaviour
+
+Figure \ref{fig:part-a-rf-mask-importance} compares the reproduced Random Forest feature-importance estimates for face-mask behaviour before and after mask mandates. The underlying results were generated by "Part A Reproduction Code/code/12_rf_before_face_mask.ipynb" and "Part A Reproduction Code/code/13_rf_after_face_mask.ipynb", and the comparison was produced in "Part A Reproduction Code/code/20_plot.ipynb".
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{Figure/Part_A_rf_fm_importance.png}
+\caption{Reproduced Random Forest feature importance for face-mask behaviour before and after mask mandates.}
+\label{fig:part-a-rf-mask-importance}
+\end{figure}
+
+\newpage
+
+### General protective behaviour
+
+Figure \ref{fig:part-a-rf-protective-importance} compares the reproduced Random Forest feature-importance estimates for general protective behaviour before and after mask mandates. The underlying results were generated by "Part A Reproduction Code/code/14_rf_before_protective.ipynb" and "Part A Reproduction Code/code/15_rf_after_protective.ipynb", and the comparison was produced in "Part A Reproduction Code/code/20_plot.ipynb".
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{Figure/Part_A_rf_protective_importance.png}
+\caption{Reproduced Random Forest feature importance for general protective behaviour before and after mask mandates.}
+\label{fig:part-a-rf-protective-importance}
+\end{figure}
+
+\newpage
+
+## Appendix K: Part A reproduced XGBoost feature importance
+
+This appendix presents the XGBoost feature-importance comparisons produced in the Part A reproduction. The figures compare median feature importance before and after mask mandates, with error bars showing the interquartile range across repeated model fits.
+
+### Face-mask behaviour
+
+Figure \ref{fig:part-a-xgb-mask-importance} compares the reproduced XGBoost feature-importance estimates for face-mask behaviour before and after mask mandates. The underlying results were generated by "Part A Reproduction Code/code/16_xgboost_before_face_mask.ipynb" and "Part A Reproduction Code/code/17_xgboost_after_face_mask.ipynb", and the comparison was produced in "Part A Reproduction Code/code/20_plot.ipynb".
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{Figure/Part_A_xgboost_fm_importance.png}
+\caption{Reproduced XGBoost feature importance for face-mask behaviour before and after mask mandates.}
+\label{fig:part-a-xgb-mask-importance}
+\end{figure}
+
+\newpage
+
+### General protective behaviour
+
+Figure \ref{fig:part-a-xgb-protective-importance} compares the reproduced XGBoost feature-importance estimates for general protective behaviour before and after mask mandates. The underlying results were generated by "Part A Reproduction Code/code/18_xgboost_before_protective.ipynb" and "Part A Reproduction Code/code/19_xgboost_after_protective.ipynb", and the comparison was produced in "Part A Reproduction Code/code/20_plot.ipynb".
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{Figure/Part_A_xgboost_protective_importance.png}
+\caption{Reproduced XGBoost feature importance for general protective behaviour before and after mask mandates.}
+\label{fig:part-a-xgb-protective-importance}
+\end{figure}
+
