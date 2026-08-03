@@ -847,7 +847,7 @@ The following tables report the ten highest-ranked predictors from each feature-
 
 \begin{table}[H]
 \centering
-\scriptsize
+\small
 \begin{tabular}{|p{0.05\textwidth}|p{0.3\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|p{0.1\textwidth}|}
 \hline
 \textbf{Rank} & \textbf{Feature} & \textbf{Median} & \textbf{Q1} & \textbf{Q3} & \textbf{IQR} \\ \hline
